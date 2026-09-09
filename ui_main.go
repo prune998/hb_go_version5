@@ -8,6 +8,12 @@ import (
 	"go.hasen.dev/shirei/widgets"
 )
 
+// test seams: identity handles so headless tests can locate menu controls.
+var (
+	actionBtnId   ContainerId
+	actionItem1Id ContainerId
+)
+
 // frame is the single shirei frame builder: main window + current dialog.
 func frame() {
 	ModAttrs(func(a *AttrSet) {
@@ -56,7 +62,9 @@ func mainWindow() {
 		Container(Attrs(Expand, Row, FixHeight(36), Gap(8), Pad2(6, 8), CrossMid,
 			Background(0, 0, 55, 1)), func() {
 			widgets.MenuButton(widgets.NoIcon, "Fichier", fichierMenu)
-			widgets.MenuButton(widgets.NoIcon, "Action", actionMenu)
+			actionBtnId = Container(Attrs(), func() {
+				widgets.MenuButton(widgets.NoIcon, "Action", actionMenu)
+			})
 			widgets.MenuButton(widgets.NoIcon, "A propos ...", aproposMenu)
 			Element(Attrs(Grow(1)))
 			Label("BS de "+nomBS, FontSize(11), TextColor(0, 0, 92, 1), Fonts(Monospace...))
@@ -97,13 +105,15 @@ func fichierMenu() {
 }
 
 func actionMenu() {
-	if widgets.MenuItem(widgets.NoIcon, "Saisie heures permanence") {
-		app.permDate = todayFR()
-		app.permDuree = "3"
-		app.permDureeInt = 3
-		app.permSel = nil
-		app.screen = scrPermAsk
-	}
+	actionItem1Id = Container(Attrs(Expand), func() {
+		if widgets.MenuItem(widgets.NoIcon, "Saisie heures permanence") {
+			app.permDate = todayFR()
+			app.permDuree = "3"
+			app.permDureeInt = 3
+			app.permSel = nil
+			app.screen = scrPermAsk
+		}
+	})
 	if widgets.MenuItem(widgets.NoIcon, "Saisie heures individuelles") {
 		app.indivRows = nil
 		app.indivDate = todayFR()
