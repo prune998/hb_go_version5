@@ -1,0 +1,48 @@
+HEURES DE BÉNÉVOLAT — INSTALLATION SUR LINUX
+============================================
+
+1. Décompressez l'archive :
+
+       tar xzf HB_version5-*-linux-*.tar.gz
+       cd HB_version5
+
+2. Installation pour l'utilisateur courant (dans ~/.local) :
+
+       ./install.sh
+
+   Le programme apparaît alors dans le menu des applications, et la commande
+   « hb_go_version5 » est disponible dans un terminal.
+
+   Autre emplacement :        PREFIX=/opt ./install.sh
+   Désinstallation :          ./install.sh --uninstall
+
+   Sans installation, le programme se lance directement :
+
+       ./hb_go_version5
+
+   (gardez alors l'exécutable et le dossier « Resources » côte à côte)
+
+QUELLE ARCHIVE CHOISIR
+----------------------
+   linux-amd64 : PC Intel ou AMD 64 bits.
+   linux-arm64 : machines ARM 64 bits (Raspberry Pi 64 bits, serveurs ARM…).
+
+PRÉREQUIS
+---------
+Un environnement graphique Wayland ou X11 ; aucune autre dépendance.
+
+DOSSIER DE TRAVAIL
+------------------
+La base (« mabase.db ») et les fichiers Excel sont créés dans le répertoire
+courant au moment du lancement.
+
+PREMIÈRE UTILISATION
+--------------------
+Menu « Fichier ▸ Initialisation du fichier des bénévoles », puis désignez le
+rapport Excel « Bénévoles_liste pour heures » exporté depuis Orphée.
+Le mode d'emploi complet est accessible par « À propos … ▸ Lisez-moi … ».
+
+SAUVEGARDE
+----------
+Faites « Fichier ▸ Sauvegarde » à chaque utilisation, et copiez les fichiers
+« sauvegarde*.db » en lieu sûr.

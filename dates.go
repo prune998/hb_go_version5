@@ -1,167 +1,136 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
-	"unicode/utf8"
 )
 
-// qMois reproduces the Python q_mois leap-year day tables (index 0 = common, 1 = leap).
-var qMois = [2][13]int{
-	{0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31},
-	{0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31},
+// Dates are typed by the user as "jj/mm/aaaa" and stored as "aaaa-mm-jj",
+// which is the format the JOURNAL table has always used (and what SQLite
+// needs for its date comparisons).
+const (
+	dateFormatFR  = "02/01/2006"
+	dateFormatISO = "2006-01-02"
+)
+
+// today is a variable so the tests can freeze the clock.
+var today = func() time.Time {
+	n := time.Now()
+	return time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, time.UTC)
 }
 
-func today() time.Time { return time.Now() }
+func formatFR(t time.Time) string  { return t.Format(dateFormatFR) }
+func formatISO(t time.Time) string { return t.Format(dateFormatISO) }
 
-// todayFR returns dd/mm/yyyy, the format the app uses for date entries.
-func todayFR() string { return today().Format("02/01/2006") }
-
-// todayISO returns yyyy-mm-dd, the format stored in JOURNAL.Date.
-func todayISO() string { return today().Format("2006-01-02") }
-
-// frToISO converts dd/mm/yyyy to yyyy-mm-dd (the Python slice trick).
-func frToISO(s string) string {
-	if len(s) != 10 {
-		return ""
-	}
-	return s[6:10] + "-" + s[3:5] + "-" + s[0:2]
+// parseISO reads a date as stored in the database.
+func parseISO(s string) (time.Time, error) {
+	return time.ParseInLocation(dateFormatISO, strings.TrimSpace(s), time.UTC)
 }
 
-func isLeap(y int) bool { return y%4 == 0 && y%100 != 0 || y%400 == 0 }
-
-// validateDateFR mirrors the Python single-date checks. It returns the French
-// uppercase error message, or "" when the date is valid.
-func validateDateFR(s string) string {
-	if len(s) != 10 {
-		return "SAISIE DATE ERRONÉE\n NOMBRE DE CARACTÈRES DIFFÉRENT DE 10"
-	}
+// parseDate validates a date typed by the user and reports the same
+// "contrôles de vraisemblance" as the original program, with one message per
+// kind of mistake.
+func parseDate(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
 	if s == "" {
-		return "LA DATE SAISIE NE PEUT PAS ÊTRE ÉGALE À 0"
+		return time.Time{}, errors.New("la date est obligatoire")
 	}
-	j, err := strconv.Atoi(s[0:2])
+	if len([]rune(s)) != 10 {
+		return time.Time{}, errors.New("date erronée : elle doit comporter 10 caractères (jj/mm/aaaa)")
+	}
+
+	fields := strings.Split(s, "/")
+	if len(fields) != 3 {
+		return time.Time{}, errors.New("date erronée : format attendu jj/mm/aaaa")
+	}
+
+	day, err := strconv.Atoi(fields[0])
 	if err != nil {
-		return "JOUR ERRONÉ"
+		return time.Time{}, errors.New("jour erroné")
 	}
-	m, err := strconv.Atoi(s[3:5])
+	month, err := strconv.Atoi(fields[1])
 	if err != nil {
-		return "MOIS ERRONÉ"
+		return time.Time{}, errors.New("mois erroné")
 	}
-	a, err := strconv.Atoi(s[6:10])
+	year, err := strconv.Atoi(fields[2])
 	if err != nil {
-		return "ANNÉE ERRONÉE"
+		return time.Time{}, errors.New("année erronée")
 	}
-	if m < 1 || m > 12 {
-		return "MOIS ERRONÉ"
+
+	if month < 1 || month > 12 {
+		return time.Time{}, errors.New("mois erroné")
 	}
-	leap := 0
-	if isLeap(a) {
-		leap = 1
+	if day < 1 || day > daysInMonth(year, month) {
+		return time.Time{}, errors.New("date invraisemblable")
 	}
-	if j < 1 || j > qMois[leap][m] {
-		return "DATE INVRAISEMBLABLE"
-	}
-	if frToISO(s) > todayISO() {
-		return "LA DATE SAISIE EST POSTÉRIEURE\nÀ LA DATE DU JOUR"
-	}
-	return ""
+
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 }
 
-// validateRange mirrors the Python j() checks on the two journal dates.
-func validateRange(d1, d2 string) string {
-	if len(d1) != 10 || len(d2) != 10 {
-		return "UNE AU MOINS DES DATES EST ERRONÉE\n NOMBRE DE CARACTÈRES DIFFÉRENT DE 10"
-	}
-	if d1 == "" || d2 == " " {
-		return "LA DATE SAISIE NE PEUT PAS ÊTRE ÉGALE À 0"
-	}
-	jd, err := strconv.Atoi(d1[0:2])
+// parsePastDate is parseDate plus the rule that hours cannot be recorded in
+// the future.
+func parsePastDate(s string) (time.Time, error) {
+	d, err := parseDate(s)
 	if err != nil {
-		return "JOUR ERRONÉ"
+		return time.Time{}, err
 	}
-	ja, err := strconv.Atoi(d2[0:2])
-	if err != nil {
-		return "JOUR ERRONÉ"
+	if d.After(today()) {
+		return time.Time{}, errors.New("la date saisie est postérieure à la date du jour")
 	}
-	md, err := strconv.Atoi(d1[3:5])
-	if err != nil {
-		return "MOIS ERRONÉ"
-	}
-	ma, err := strconv.Atoi(d2[3:5])
-	if err != nil {
-		return "MOIS ERRONÉ"
-	}
-	ad, err := strconv.Atoi(d1[6:10])
-	if err != nil {
-		return "ANNÉE ERRONÉE"
-	}
-	aa, err := strconv.Atoi(d2[6:10])
-	if err != nil {
-		return "ANNÉE ERRONÉE"
-	}
-	if md < 1 || md > 12 || ma < 1 || ma > 12 {
-		return "MOIS ERRONÉ"
-	}
-	if jd < 1 || jd > qMois[boolInt(isLeap(ad))][md] {
-		return "DATE DE DÉPART INVRAISEMBLABLE"
-	}
-	if ja < 1 || ja > qMois[boolInt(isLeap(aa))][ma] {
-		return "DATE DE FIN INVRAISEMBLABLE"
-	}
-	limiteb := frToISO(d1)
-	limiteh := frToISO(d2)
-	if limiteb > todayISO() {
-		return "LA DATE DE DÉPART EST POSTÉRIEURE\nÀ LA DATE DU JOUR"
-	}
-	if limiteb > limiteh {
-		return "LA DATE DE DÉPART EST POSTÉRIEURE\nÀ LA DATE DE FIN"
-	}
-	return ""
+	return d, nil
 }
 
-func boolInt(b bool) int {
-	if b {
-		return 1
+// parseDateRange validates the two bounds of a report.
+func parseDateRange(fromText, toText string) (time.Time, time.Time, error) {
+	from, err := parseDate(fromText)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("date de départ : %w", err)
+	}
+	to, err := parseDate(toText)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("date de fin : %w", err)
+	}
+	if from.After(today()) {
+		return time.Time{}, time.Time{}, errors.New("la date de départ est postérieure à la date du jour")
+	}
+	if from.After(to) {
+		return time.Time{}, time.Time{}, errors.New("la date de départ est postérieure à la date de fin")
+	}
+	return from, to, nil
+}
+
+// parseHours reads a whole number of hours. Negative values are allowed on
+// purpose: that is how a wrong entry is cancelled.
+func parseHours(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, errors.New("durée erronée : indiquez un nombre d'heures entier")
+	}
+	h, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, errors.New("durée erronée : indiquez un nombre d'heures entier")
+	}
+	return h, nil
+}
+
+func daysInMonth(year, month int) int {
+	switch month {
+	case 1, 3, 5, 7, 8, 10, 12:
+		return 31
+	case 4, 6, 9, 11:
+		return 30
+	case 2:
+		if isLeapYear(year) {
+			return 29
+		}
+		return 28
 	}
 	return 0
 }
 
-func padRight(s string, w int) string {
-	if len(s) >= w {
-		return s
-	}
-	return s + repeat(" ", w-len(s))
-}
-
-func padCenter(s string, w int) string {
-	if len(s) >= w {
-		return s
-	}
-	left := (w - len(s)) / 2
-	return repeat(" ", left) + s + repeat(" ", w-len(s)-left)
-}
-
-func repeat(s string, n int) string {
-	out := ""
-	for i := 0; i < n; i++ {
-		out += s
-	}
-	return out
-}
-
-// padRightRunes is the rune-aware twin of padRight (accents are single cells).
-func padRightRunes(s string, w int) string {
-	if utf8.RuneCountInString(s) >= w {
-		return s
-	}
-	return s + repeat(" ", w-utf8.RuneCountInString(s))
-}
-
-// cutRunes mirrors the Python text[0:30] truncation on a rune basis.
-func cutRunes(s string, n int) string {
-	rs := []rune(s)
-	if len(rs) <= n {
-		return s
-	}
-	return string(rs[:n])
+func isLeapYear(y int) bool {
+	return (y%4 == 0 && y%100 != 0) || y%400 == 0
 }

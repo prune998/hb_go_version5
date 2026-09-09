@@ -1,0 +1,99 @@
+name: Release
+
+# Publie les paquets des cinq cibles sur un tag « v… » :
+#   git tag v1.0.0 && git push origin v1.0.0
+# ou manuellement depuis l'onglet Actions (champ « version »).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Numéro de version (ex. 1.0.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+    steps:
+      - id: compute
+        # Sur un tag : v1.0.0 → 1.0.0. En manuel : la valeur saisie.
+        run: |
+          version="${{ inputs.version || github.ref_name }}"
+          echo "version=${version#v}" >> "$GITHUB_OUTPUT"
+
+  windows-linux:
+    name: Windows et Linux (amd64, arm64)
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Ni Windows ni Linux n'utilisent cgo : les quatre binaires se
+      # compilent depuis ce seul runner.
+      - run: make dist-windows dist-linux VERSION=${{ needs.version.outputs.version }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-windows-linux
+          path: dist/*
+
+  macos:
+    name: macOS (Intel, Apple Silicon, universel)
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Cocoa passe par cgo : le runner est Apple Silicon et compile aussi la
+      # tranche Intel (le SDK Xcode contient les deux) ; lipo les réunit dans
+      # le paquet universel.
+      - run: make dist-macos VERSION=${{ needs.version.outputs.version }}
+      - name: Vérification du bundle
+        run: |
+          codesign --verify --verbose build/stage/macos-universal/HB_version5.app
+          build/stage/macos-universal/HB_version5.app/Contents/MacOS/hb_go_version5 -version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos
+          path: dist/*
+
+  publish:
+    name: Publication de la release
+    needs: [version, windows-linux, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Empreintes SHA256
+        run: cd dist && sha256sum HB_version5-* > SHA256SUMS.txt
+      - name: Notes de version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: sed "s/@VERSION@/$VERSION/g" packaging/release-notes.md > notes.md
+      - name: Publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          tag="${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', needs.version.outputs.version) }}"
+          gh release create "$tag" dist/* \
+            --title "Heures de bénévolat $VERSION" \
+            --notes-file notes.md \
+            --target "${{ github.sha }}" \
+            || gh release upload "$tag" dist/* --clobber

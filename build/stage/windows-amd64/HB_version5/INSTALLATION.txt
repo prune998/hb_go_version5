@@ -1,0 +1,40 @@
+HEURES DE BÉNÉVOLAT — INSTALLATION SUR WINDOWS
+==============================================
+
+1. Décompressez entièrement l'archive (clic droit ▸ « Extraire tout … »),
+   par exemple dans « Documents\HB_version5 ».
+
+   IMPORTANT : gardez le fichier « hb_go_version5.exe » et le dossier
+   « Resources » côte à côte ; le programme y trouve son illustration et son
+   mode d'emploi.
+
+2. Double-cliquez sur « hb_go_version5.exe ».
+
+   Windows peut afficher « Windows a protégé votre ordinateur » (SmartScreen)
+   parce que le programme n'est pas signé : cliquez sur « Informations
+   complémentaires » puis « Exécuter quand même ». Ce message ne revient pas.
+
+3. Pour un accès rapide : clic droit sur le fichier .exe ▸ « Envoyer vers ▸
+   Bureau (créer un raccourci) », ou « Épingler à la barre des tâches ».
+
+QUELLE ARCHIVE CHOISIR
+----------------------
+   windows-amd64 : tous les PC Windows habituels (Intel ou AMD).
+   windows-arm64 : PC Windows sur processeur ARM (Snapdragon, Surface ARM).
+
+DOSSIER DE TRAVAIL
+------------------
+La base (« mabase.db ») et les fichiers Excel sont créés dans le dossier
+depuis lequel le programme est lancé, c'est-à-dire celui où vous avez
+décompressé l'archive.
+
+PREMIÈRE UTILISATION
+--------------------
+Menu « Fichier ▸ Initialisation du fichier des bénévoles », puis désignez le
+rapport Excel « Bénévoles_liste pour heures » exporté depuis Orphée.
+Le mode d'emploi complet est accessible par « À propos … ▸ Lisez-moi … ».
+
+SAUVEGARDE
+----------
+Faites « Fichier ▸ Sauvegarde » à chaque utilisation, et copiez les fichiers
+« sauvegarde*.db » en lieu sûr (clé USB, espace en ligne).

@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Format, vet et tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make check
+
+  build:
+    name: Compilation (${{ matrix.os }})
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Commandes go directement : les runners Windows n'ont pas make.
+      - run: go build ./...
+      - run: go test ./...
+
+  packages:
+    name: Paquets Windows et Linux
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make dist-windows dist-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paquets-windows-linux
+          path: dist/*
+          retention-days: 7
+
+  packages-macos:
+    name: Paquets macOS
+    needs: check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make dist-macos
+      # Vérifie que le bundle assemblé démarre et trouve ses ressources.
+      - name: Rendu d'un écran depuis le bundle
+        run: |
+          build/stage/macos-universal/HB_version5.app/Contents/MacOS/hb_go_version5 -version
+          build/stage/macos-universal/HB_version5.app/Contents/MacOS/hb_go_version5 \
+            -png accueil.png -screen home
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paquets-macos
+          path: dist/*
+          retention-days: 7

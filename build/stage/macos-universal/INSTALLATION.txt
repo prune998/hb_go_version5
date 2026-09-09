@@ -1,0 +1,32 @@
+HEURES DE BÉNÉVOLAT — INSTALLATION SUR macOS
+============================================
+
+1. Glissez « HB_version5.app » dans votre dossier Applications.
+
+2. Au premier lancement, macOS refuse d'ouvrir une application qui ne vient
+   pas de l'App Store : faites un clic droit (ou Ctrl + clic) sur l'icône,
+   choisissez « Ouvrir », puis confirmez « Ouvrir » dans la fenêtre affichée.
+   Les lancements suivants se font par un simple double-clic.
+
+   Si macOS répond que l'application « est endommagée », ouvrez le Terminal
+   et tapez :
+
+       xattr -dr com.apple.quarantine /Applications/HB_version5.app
+
+3. Vous pouvez garder l'icône dans le Dock : glissez-la depuis Applications.
+
+DOSSIER DE TRAVAIL
+------------------
+La base et les fichiers Excel sont créés dans « ~/HB_version5 »
+(dossier « HB_version5 » de votre dossier personnel).
+
+PREMIÈRE UTILISATION
+--------------------
+Menu « Fichier ▸ Initialisation du fichier des bénévoles », puis désignez le
+rapport Excel « Bénévoles_liste pour heures » exporté depuis Orphée.
+Le mode d'emploi complet est accessible par « À propos … ▸ Lisez-moi … ».
+
+SAUVEGARDE
+----------
+Faites « Fichier ▸ Sauvegarde » à chaque utilisation, et copiez le dossier
+« ~/HB_version5 » sur une clé USB ou dans votre espace de sauvegarde.
