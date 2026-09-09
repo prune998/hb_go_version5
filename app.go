@@ -1,136 +1,180 @@
 package main
 
-// screen enumerates the dialogs; the frame renders the current one as a Modal.
-type screen int
+import (
+	"time"
 
-const (
-	scrMain screen = iota
-	scrPermAsk // date + durée standard
-	scrPermSelect
-	scrIndivSelect
-	scrIndivFields
-	scrConsSelect
-	scrConsFields
-	scrJournalAsk
-	scrJournalView
-	scrInitSelect // choix du fichier orphelinat
-	scrInjectSelect
-	scrNoDB      // pas de base : choisir un fichier .db ou partir d'une base vide
-	scrNoDBFile  // sélecteur de fichier pour scrNoDB
+	. "go.hasen.dev/shirei/widgets"
 )
 
-type msgKind int
+// Screen is the page currently filling the window. Every action of the menu
+// bar leads to one of them; each one follows the same three beats:
+// parameters, work, validation.
+type Screen int
 
 const (
-	msgNone msgKind = iota
-	msgInfo
-	msgErr
+	ScreenHome Screen = iota
+	ScreenEntry
+	ScreenInject
+	ScreenJournal
 )
 
-// selEntry is one row of the "selected" list, carrying the per-member data
-// the insertion flows need (Python kept the same data in liste_permanence).
-type selEntry struct {
-	idx     int
-	dateISO string
-	duree   int // perm + indiv
-	cat     int // indiv: 1=Extérieur 2=Lecture DDV 3=Régional 4=National
-	hp, hd, hl, hr, hn int // cons
-	comm    string
-	red     bool
-}
-
-// App holds every piece of UI state; the frame loop mutates it directly
-// (shirei frames run on the UI loop, like tkinter callbacks).
+// App is the whole state of the program: the data read from the database,
+// the current screen and the state of each workflow. Shirei rebuilds the
+// interface from this structure at every frame.
 type App struct {
-	screen screen
+	paths Paths
+	store *Store
+	data  Reference
+	dbErr string
 
-	// message overlay
-	msg      msgKind
-	msgTitle string
-	msgText  string
-	msgQuit  bool // OK on this message exits the app (initialisation & fatal errors)
+	screen  Screen
+	entry   EntryScreen
+	inject  InjectScreen
+	journal JournalScreen
 
-	// permanence
-	permDate     string
-	permDateISO  string
-	permDuree    string
-	permDureeInt int
-	permSel      []int
-
-	// individuel
-	indivPending int // member index waiting for the fields dialog
-	indivDate    string
-	indivDuree   string
-	indivCat     int
-	indivCom     string
-	indivRows    []selEntry
-
-	// consolidation
-	consPending int
-	consDate    string
-	consHP      string
-	consHD      string
-	consHL      string
-	consHR      string
-	consHN      string
-	consCom     string
-	consRows    []selEntry
-
-	// journal
-	jMode     int
-	jD1       string
-	jD2       string
-	jRows     []JournalRow
-	jSum      [6]int // HP, HD, HL, HR, HN, TG
-	jMembers  map[string][6]int
-	jExcelMsg string
-	jErr      string
-
-	// file selection (init + injection) — FileBrowserPanel bindings
-	fileCwd    string
-	fileFilter string
-	fileSelIdx int
-	fileSel    string
+	picker  FilePicker
+	confirm Confirm
+	about   bool
 }
 
-var app = &App{
-	permDate:     todayFR(),
-	indivDate:    todayFR(),
-	consDate:     todayFR(),
-	jD1:          todayFR(),
-	jD2:          todayFR(),
-	permDuree:    "3",
-	permDureeInt: 3,
-	indivDuree:   "3",
-	indivCat:     1,
-	consHP: "0", consHD: "0", consHL: "0", consHR: "0", consHN: "0",
-	jMode:      1,
-	fileSelIdx: -1,
+var app = &App{}
+
+// Setup opens the database and loads the reference data.
+func (a *App) Setup() {
+	paths, err := NewPaths()
+	if err != nil {
+		a.dbErr = err.Error()
+		return
+	}
+	a.paths = paths
+
+	store, err := OpenStore(paths.DB)
+	if err != nil {
+		a.dbErr = err.Error()
+		return
+	}
+	a.store = store
+	a.Reload()
 }
 
-// showInfo / showErr set the message overlay (the Go twin of messagebox).
-func (a *App) showInfo(title, text string) {
-	a.msg, a.msgTitle, a.msgText = msgInfo, title, text
+// Reload re-reads the reference data after the database has changed.
+func (a *App) Reload() {
+	if a.store == nil {
+		return
+	}
+	data, err := a.store.Load()
+	if err != nil {
+		a.dbErr = err.Error()
+		return
+	}
+	a.dbErr = ""
+	a.data = data
 }
 
-func (a *App) showErr(title, text string) {
-	a.msg, a.msgTitle, a.msgText = msgErr, title, text
+// Ready reports whether hours can be recorded, which needs a volunteer list.
+func (a *App) Ready() bool { return a.dbErr == "" && a.data.Initialised() }
+
+// BSName is the name of the "BS" shown in the header and written in the
+// workbooks.
+func (a *App) BSName() string {
+	if a.data.BS == "" {
+		return "—"
+	}
+	return a.data.BS
 }
 
-func (a *App) closeMsg() {
-	a.msg = msgNone
-	a.msgTitle, a.msgText = "", ""
-	if a.msgQuit {
-		a.msgQuit = false
-		quitApp()
+// Benevole finds a volunteer by identifier.
+func (a *App) Benevole(id int) *Benevole {
+	for i := range a.data.Benevoles {
+		if a.data.Benevoles[i].ID == id {
+			return &a.data.Benevoles[i]
+		}
+	}
+	return nil
+}
+
+// GoHome leaves the current workflow.
+func (a *App) GoHome() { a.screen = ScreenHome }
+
+// Notify reports a successful operation.
+func (a *App) Notify(title, message string) {
+	ToastExt(ToastAttrs{
+		Icon:       SymPass,
+		Title:      title,
+		Body:       message,
+		Background: ToastBackgroundSuccess,
+		Duration:   6 * time.Second,
+	})
+}
+
+// NotifyInfo reports a neutral piece of information.
+func (a *App) NotifyInfo(title, message string) {
+	ToastExt(ToastAttrs{
+		Icon:       SymInfo,
+		Title:      title,
+		Body:       message,
+		Background: ToastBackgroundInfo,
+		Duration:   8 * time.Second,
+	})
+}
+
+// NotifyError reports a failure; those stay longer on screen.
+func (a *App) NotifyError(title, message string) {
+	ToastExt(ToastAttrs{
+		Icon:       SymWarn,
+		Title:      title,
+		Body:       message,
+		Background: ToastBackgroundDanger,
+		Duration:   12 * time.Second,
+	})
+}
+
+// Confirm is the shared confirmation dialog, used before every operation
+// that cannot be undone.
+type Confirm struct {
+	open     bool
+	title    string
+	message  string
+	okLabel  string
+	danger   bool
+	onAccept func()
+}
+
+// Ask opens the confirmation dialog.
+func (c *Confirm) Ask(title, message, okLabel string, danger bool, onAccept func()) {
+	*c = Confirm{
+		open:     true,
+		title:    title,
+		message:  message,
+		okLabel:  okLabel,
+		danger:   danger,
+		onAccept: onAccept,
 	}
 }
 
-// dismissTo is the modal close handler for a screen: nil while a message
-// overlay is open, so Escape / scrim click only closes the topmost dialog.
-func (a *App) dismissTo(scr screen) func() {
-	if a.msg != msgNone {
-		return nil
-	}
-	return func() { a.screen = scr }
+func (c *Confirm) close() { *c = Confirm{} }
+
+// FilePicker is the shared "choose a file" dialog.
+type FilePicker struct {
+	open     bool
+	title    string
+	cwd      string
+	filter   string
+	selected int
+	exts     []string
+	onPick   func(path string)
 }
+
+// Open shows the picker; onPick receives the chosen file.
+func (p *FilePicker) Open(title, start string, exts []string, onPick func(string)) {
+	*p = FilePicker{
+		open:     true,
+		title:    title,
+		cwd:      start,
+		selected: -1,
+		exts:     exts,
+		onPick:   onPick,
+	}
+}
+
+func (p *FilePicker) close() { *p = FilePicker{} }

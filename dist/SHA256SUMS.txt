@@ -1,0 +1,7 @@
+185acf71b2d8635c524b9950e8a8c0f9d3ad4730a44f61aea2ec47f24e7e9144  HB_version5-1.0.0-linux-amd64.tar.gz
+c107ba050e07d0062e367d6a051b1b38875024ca13c835a8d8726d52789c631d  HB_version5-1.0.0-linux-arm64.tar.gz
+2b75e33ab34238cdd72915a490fcc02e1d4c66f5339207d10b36dccfd4782b26  HB_version5-1.0.0-macos-apple-silicon.zip
+c571846de7b8e09762a4b011464caaa55c8eadcc3a8d9035afc6120269bbbf15  HB_version5-1.0.0-macos-intel.zip
+bf0fd1c94eeb8a10924c750c5159e12692d230b5bc97c29308b1fa81df76cd8e  HB_version5-1.0.0-macos-universal.zip
+dcd06c430bc92d9e6feef3195b17595a24efe23c21efdb1f906bea695bc57c7c  HB_version5-1.0.0-windows-amd64.zip
+2a938360cd3b2ac0949306b73351dd437e8ef67bf75314281822e2286b05b2ee  HB_version5-1.0.0-windows-arm64.zip

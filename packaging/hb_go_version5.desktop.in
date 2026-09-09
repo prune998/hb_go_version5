@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Heures de bénévolat
+GenericName=Saisie des heures de bénévolat
+Comment=Saisie des heures de bénévolat d'une BS (ADV) — version @VERSION@
+Exec=@EXEC@
+Icon=@ICON@
+Terminal=false
+Categories=Office;Database;
+StartupNotify=true
